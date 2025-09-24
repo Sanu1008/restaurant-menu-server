@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restaurant Menu</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+<style>
+/* --- same styles as before --- */
+body { background: linear-gradient(120deg, #fdfbfb, #ebedee); font-family: 'Segoe UI', sans-serif; }
+.menu-header { text-align: center; margin: 15px 0; font-weight: 700; font-size: 1.8rem; color: #28a745; }
+.card {
+  width: 100%;
+  margin: 0 auto;
+}
+.card:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }
+.price { font-weight: bold; color: #28a745; font-size: 0.95rem; }
+.nav-pills .nav-link.active { background-color: #28a745; color: white; font-weight: 600; }
+.food-img {
+  width: 100%;
+  aspect-ratio: 4/3;      /* maintains proper width:height ratio */
+  object-fit: cover;       /* fills card without distortion */
+  display: block;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+  border-radius: 12px 12px 0 0;
+  transition: transform 0.3s;
+}
+.card:hover .food-img { transform: scale(1.05); }
+
+@media (max-width: 768px) {
+  .food-img { aspect-ratio: 3/2; }
+}
+@media (max-width: 576px) {
+  .food-img { aspect-ratio: 4/3; }
+}
+.card:hover .food-img { transform: scale(1.05); }
+#searchBar { border-radius: 50px; padding-left: 15px; font-size: 0.95rem; box-shadow: 0 3px 8px rgba(0,0,0,0.05); }
+.menu-item p { font-size: 0.85rem; color: #555; margin-bottom: 5px; }
+.no-results { text-align: center; font-size: 1.1rem; color: #888; margin: 15px 0; }
+.fixed-bottom { padding: 6px 12px !important; font-size: 0.8rem; }
+.fixed-bottom .btn-sm { font-size: 0.7rem; padding: 2px 6px; }
+#cartModal .modal-content { font-size: 0.8rem; }
+#cartModal .modal-header, #cartModal .modal-footer { padding: 6px 12px; }
+#cartModal .modal-body { padding: 8px 12px; }
+#cartModal .cart-item { padding: 4px 0; }
+#cartModal .cart-item button { font-size: 0.65rem; padding: 1px 4px; }
+#cartModal input, #cartModal textarea { font-size: 0.75rem; padding: 3px 6px; margin-bottom: 4px; }
+#cartModal h5 { font-size: 0.9rem; }
+#cartModal #checkoutBtn, #cartModal #reviewBtn { font-size: 0.75rem; padding: 4px 8px; }
+#cartModal #loader { width: 18px; height: 18px; }
+  .menu-header {
+    font-size: 1.4rem;
+  }
+  .price {
+    font-size: 0.8rem;
+  }
+.menu-header { font-size: 1.3rem; } .price { font-size: 0.85rem; } 
+</style>
+</head>
+<body>
+<div class="container" id="menuContainer">
+  <h1 class="menu-header"><i class="fa-solid fa-utensils"></i> DAJAJ EXPRESS</h1>
+  <div class="mb-4">
+    <input type="text" id="searchBar" class="form-control" placeholder="🔍 Search for a dish...">
+  </div>
+  <ul class="nav nav-pills justify-content-center mb-4" id="menuTabs"></ul>
+  <div class="tab-content" id="menuContent"></div>
+  <div class="no-results" style="display:none;">No results found.</div>
+</div>
+
+<div class="fixed-bottom bg-success text-white d-flex justify-content-between align-items-center shadow-lg">
+  <div>
+    <i class="fa fa-shopping-cart"></i> 
+    <span id="cart-count">0</span> items | Total: SAR <span id="cart-total">0.00</span>
+  </div>
+  <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#cartModal">View Cart</button>
+</div>
+
+<div class="modal fade" id="cartModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-shopping-cart"></i> Your Cart</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cart-review"></div>
+        <div id="customer-details" style="display:none;">
+          <input type="text" id="customerName" class="form-control mb-2" placeholder="Customer Name" required>
+          <input type="text" id="customerMobile" class="form-control mb-2" placeholder="Mobile Number" required>
+          <textarea id="customerLocation" class="form-control mb-2" placeholder="Delivery Location" rows="2" required></textarea>
+          <input type="hidden" id="customerMapsLink">
+          <button type="button" class="btn btn-outline-success btn-sm" onclick="getCurrentLocation()">📍 Use Current Location</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <h5 class="me-auto">Total: SAR <span id="cart-total-modal">0.00</span></h5>
+        <div id="loader" class="spinner-border text-success me-2" role="status" style="display:none;"><span class="visually-hidden">Loading...</span></div>
+        <button id="reviewBtn" class="btn btn-success" onclick="showCustomerDetails()">Review & Confirm</button>
+        <button id="checkoutBtn" class="btn btn-success" onclick="submitOrder()" style="display:none;">Checkout</button>
+      </div>
+    </div>
+  </div>
+  
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" style="
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,255,255,0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+">
+  <img src="logo.png" alt="Logo" style="width:100px; margin-bottom:15px;">
+  <div class="spinner-border text-success" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <div style="margin-top:10px; color:#28a745; font-weight:600;">Loading menu...</div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay1" style="
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,255,255,0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+">
+  <img src="logo.png" alt="Logo" style="width:100px; margin-bottom:15px;">
+  <div class="spinner-border text-success" role="status">
+    <span class="visually-hidden">Submitting Order...</span>
+  </div>
+  <div style="margin-top:10px; color:#28a745; font-weight:600;">Submitting Order...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let cart = [];
+const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRYyrVwugHSrwYr-Lec1O_4OFoteVOWgJtpG2o-V9xoNqHeaeBcZC7pImOtxKyiGm2n_aeTDEwNSxq-/pub?gid=625250069&single=true&output=tsv";
+
+let lastSheetHash = '';
+
+function hashString(str) {
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+}
+function adjustContainerPadding() {
+  const banner = document.querySelector('.fixed-bottom');
+  const container = document.getElementById('menuContainer');
+  if (banner && container) {
+    const height = banner.offsetHeight;
+    container.style.paddingBottom = height + 15 + 'px'; // extra 15px for spacing
+  }
+}
+
+// Run on page load and when window resizes
+document.addEventListener('DOMContentLoaded', adjustContainerPadding);
+window.addEventListener('resize', adjustContainerPadding);
+
+let lastETag = '';  
+
+function loadMenu() {
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const url = sheetURL + '&nocache=' + new Date().getTime() + Math.random();
+loadingOverlay1.style.display = 'none'
+  fetch(url)
+    .then(res => res.text())
+    .then(tsvText => {
+      const currentHash = hashString(tsvText);
+      if (currentHash === lastSheetHash) return; // unchanged
+      lastSheetHash = currentHash;
+
+      loadingOverlay.style.display = 'flex';
+      const lines = tsvText.trim().split("\n");
+      const headers = lines[0].split("\t").map(h => h.trim());
+      const data = lines.slice(1).map(line => {
+        const values = line.split("\t").map(v => v.trim());
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = values[i] || "");
+        return obj;
+      });
+
+      renderMenu(data);
+    })
+    .catch(err => console.error("Error fetching menu:", err))
+    .finally(() => loadingOverlay.style.display = 'none');
+}
+
+
+// Check every 3 seconds
+//setInterval(loadMenu, 3000);
+
+
+
+async function getCurrentLocation() {
+  if (!navigator.geolocation) {
+    alert("Geolocation not supported by your browser.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    try {
+      // Reverse geocoding with OpenStreetMap
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+      const data = await response.json();
+
+      const address = data.display_name || '';  // Human-readable address
+      const mapsLink = `https://www.google.com/maps?q=${lat},${lng}`; // Google Maps link
+
+      // Update the textarea with the address only
+      document.getElementById("customerLocation").value = address;
+
+      // Store the Google Maps link separately
+      document.getElementById("customerMapsLink").value = mapsLink;
+
+    } catch (err) {
+      console.error("Reverse geocoding failed:", err);
+      alert("Unable to get address. Latitude/Longitude saved instead.");
+
+      // Fallback: just lat/lng
+      document.getElementById("customerLocation").value = `${lat}, ${lng}`;
+      document.getElementById("customerMapsLink").value = `https://www.google.com/maps?q=${lat},${lng}`;
+    }
+
+  }, (err) => {
+    console.error(err);
+    alert("Unable to fetch your location. Please allow location access in your browser.");
+  });
+}
+
+
+function submitOrder() {
+  if (cart.length === 0) {
+    alert("Your cart is empty!");
+    return;
+  }
+
+  const customerName = document.getElementById("customerName").value.trim();
+  const customerMobile = document.getElementById("customerMobile").value.trim();
+  const customerLocation = document.getElementById("customerLocation").value.trim();
+
+  if (!customerName || !customerMobile || !customerLocation) {
+    alert("Please enter your name, mobile number, and delivery location.");
+    return;
+  }
+
+  const orderData = {
+  type: "order",  // ✅ This is required
+  customerName: document.getElementById("customerName").value.trim(),
+  customerMobile: document.getElementById("customerMobile").value.trim(),
+  customerLocation: document.getElementById("customerLocation").value,
+  mapsLink: document.getElementById("customerMapsLink").value,
+  cart
+};
+
+ // ✅ Close the modal immediately
+  const cartModalEl = document.getElementById("cartModal");
+  const cartModal = bootstrap.Modal.getInstance(cartModalEl);
+  if (cartModal) cartModal.hide();
+   // Show full-page overlay
+  const loadingOverlay1 = document.getElementById("loadingOverlay1");
+  loadingOverlay1.style.display = "flex";
+  document.getElementById("checkoutBtn").disabled = true;
+
+  // ✅ CORS-safe fetch (no custom headers)
+  fetch("https://script.google.com/macros/s/AKfycbwsI6mClwLo2zfeunfA1u_rVg456_i9A_wkX43oowxvG0RY0UkIr3ccJVaPURVY4hA3OA/exec", {
+    method: "POST",
+    body: JSON.stringify(orderData) // send JSON as plain text
+  })
+    .then(res => res.json())
+    .then(response => {
+      document.getElementById("loader").style.display = "none";
+      document.getElementById("checkoutBtn").disabled = false;
+
+      if (response.status === "success") {
+        alert("✅ Order placed successfully! Order ID: " + response.orderId);
+        cart = [];
+        updateCart();
+        document.getElementById("customer-details").style.display = "none";
+        document.getElementById("reviewBtn").style.display = "inline-block";
+        document.getElementById("checkoutBtn").style.display = "none";
+        bootstrap.Modal.getInstance(document.getElementById("cartModal")).hide();
+      } else {
+        alert("❌ Failed to place order. " + (response.message || ""));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById("loader").style.display = "none";
+      document.getElementById("checkoutBtn").disabled = false;
+      alert("⚠️ Error connecting to server.");
+    });
+}
+
+
+
+function renderMenu(data, selections = {}) {
+  const menuTabs = document.getElementById('menuTabs');
+  const menuContent = document.getElementById('menuContent');
+  menuTabs.innerHTML = '';
+  menuContent.innerHTML = '';
+
+  // ✅ Build unique, safe category list
+  const categories = [...new Set(
+    data
+      .filter(item => item && item.Category)                  // skip bad/empty rows
+      .map(item => String(item.Category).trim())              // force string
+      .filter(Boolean)                                        // remove blanks
+  )];
+
+  categories.forEach((cat, index) => {
+    // --- Tabs ---
+    const li = document.createElement('li');
+    li.className = 'nav-item';
+    li.innerHTML = `
+      <button class="nav-link ${index === 0 ? 'active' : ''}" 
+              data-bs-toggle="pill" 
+              data-bs-target="#cat${index}">
+        ${cat}
+      </button>`;
+    menuTabs.appendChild(li);
+
+    // --- Tab content wrapper ---
+    const div = document.createElement('div');
+    div.className = `tab-pane fade ${index === 0 ? 'show active' : ''}`;
+    div.id = `cat${index}`;
+    div.innerHTML = `<div class="row g-3"></div>`;
+    menuContent.appendChild(div);
+
+    const row = div.querySelector('.row');
+
+    // --- Render items in this category ---
+    data
+      .filter(item => item && item.Category && String(item.Category).trim() === cat)
+      .forEach(menuItem => {
+        const variants = menuItem.Variants ? menuItem.Variants.split(';') : [];
+        let variantSelect = '';
+        if (variants.length) {
+          variantSelect = `<select class="form-select form-select-sm mb-1 variant-select">` +
+            variants.map(v => {
+              const [name, price] = v.split(':');
+              return `<option value="${(price || 0).trim()}">${(name || '').trim()} - SAR ${parseFloat(price || 0).toFixed(3)}</option>`;
+            }).join('') +
+            `</select>`;
+        }
+
+        let imgSrc = '';
+        if (menuItem.ImageBase64) {
+          let cleanBase64 = menuItem.ImageBase64.replace(/[\s\u200B\r\n]+/g, '');
+          if (cleanBase64.startsWith('/9j/')) imgSrc = `data:image/jpeg;base64,${cleanBase64}`;
+          else if (cleanBase64.startsWith('iVBORw0')) imgSrc = `data:image/png;base64,${cleanBase64}`;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'col-lg-4 col-md-6 col-12 menu-item';
+        card.innerHTML = `
+          <div class="card shadow-sm">
+            <img src="${imgSrc}" class="food-img w-100" alt="${menuItem.Name}">
+            <div class="p-2">
+              <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-1">${menuItem.Name}</h6>
+                <span class="price">SAR ${variants.length ? parseFloat(variants[0].split(':')[1]).toFixed(3) : '0.000'}</span>
+              </div>
+              <p class="mb-1">${menuItem.Description || ''}</p>
+              ${variantSelect}
+              <button class="btn btn-success btn-sm add-to-cart">Add</button>
+            </div>
+          </div>
+        `;
+        row.appendChild(card);
+
+        const addBtn = card.querySelector('.add-to-cart');
+        const select = card.querySelector('.variant-select');
+        const priceTag = card.querySelector('.price');
+
+        // Restore previous selection
+        if (select && selections[menuItem.Name]) select.value = selections[menuItem.Name];
+
+        if (select) {
+          select.addEventListener('change', () => {
+            priceTag.innerText = 'SAR ' + parseFloat(select.value).toFixed(3);
+          });
+          if (select.value) priceTag.innerText = 'SAR ' + parseFloat(select.value).toFixed(3);
+        }
+
+        addBtn.addEventListener('click', () => {
+          const variantName = select ? select.options[select.selectedIndex].text.split(' - ')[0] : '';
+          const price = select ? parseFloat(select.value) : 0;
+          const name = menuItem.Name + (variantName ? ' - ' + variantName : '');
+          const existingIndex = cart.findIndex(item => item.name === name);
+          if (existingIndex >= 0) cart[existingIndex].qty += 1;
+          else cart.push({ name, price, qty: 1 });
+          updateCart();
+        });
+      });
+  });
+}
+// 🔍 Search filter
+document.getElementById('searchBar').addEventListener('input', function() {
+  const term = this.value.toLowerCase().trim();
+  let anyVisible = false;
+
+  document.querySelectorAll('.menu-item').forEach(card => {
+    const name = card.querySelector('h6').innerText.toLowerCase();
+    const desc = (card.querySelector('p')?.innerText || '').toLowerCase();
+
+    if (name.includes(term) || desc.includes(term)) {
+      card.style.display = '';
+      anyVisible = true;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  // show/hide "no results"
+  document.querySelector('.no-results').style.display = anyVisible ? 'none' : 'block';
+});
+
+
+function updateCart() {
+  const cartReview = document.getElementById('cart-review');
+  const cartTotal = document.getElementById('cart-total');
+  const cartTotalModal = document.getElementById('cart-total-modal');
+  const cartCount = document.getElementById('cart-count');
+
+  cartReview.innerHTML = '';
+  let total = 0, count = 0;
+
+  cart.forEach((item, index) => {
+    total += item.price * item.qty;
+    count += item.qty;
+    cartReview.innerHTML += `
+      <div class="cart-item d-flex justify-content-between align-items-center border-bottom py-2">
+        <div><strong>${item.name}</strong><br>SAR ${item.price.toFixed(3)} x ${item.qty}</div>
+        <div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="changeQty(${index}, -1)">-</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="changeQty(${index}, 1)">+</button>
+          <button class="btn btn-sm btn-danger" onclick="removeItem(${index})"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>
+    `;
+  });
+
+  cartTotal.innerText = total.toFixed(3);
+  cartTotalModal.innerText = total.toFixed(3);
+  cartCount.innerText = count;
+}
+
+function changeQty(index, delta) {
+  cart[index].qty += delta;
+  if (cart[index].qty <= 0) cart.splice(index, 1);
+  updateCart();
+}
+
+function removeItem(index) {
+  cart.splice(index, 1);
+  updateCart();
+}
+
+function showCustomerDetails() {
+  document.getElementById('customer-details').style.display = 'block';
+  document.getElementById('reviewBtn').style.display = 'none';
+  document.getElementById('checkoutBtn').style.display = 'inline-block';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadMenu();
+  //setInterval(loadMenu, 30000); // auto-refresh every 30 sec
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #fffcfc; /* fallback background */
+    }
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* fills entire screen while maintaining aspect ratio */
+    }
+  </style>
+</head>
+<body>
+  <img src="Main.jpg" alt="Welcome Image">
+
+  <script>
+    // Redirect after 3 seconds
+    setTimeout(() => {
+      window.location.href = "splash.html"; // your main page
+    }, 3000);
+  </script>
+</body>
+</html>
